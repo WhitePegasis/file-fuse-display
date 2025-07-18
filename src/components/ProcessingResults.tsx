@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, File, Code2, Loader2, FileText, Image, Video, Music } from 'lucide-react';
+import { ArrowLeft, File, Code2, Loader2, FileText, Image, Video, Music, FileType } from 'lucide-react';
 
 interface ProcessingResultsProps {
   file: File;
@@ -23,13 +23,20 @@ const ProcessingResults = ({ file, processedData, onBack }: ProcessingResultsPro
         
         // Cleanup URL when component unmounts
         return () => URL.revokeObjectURL(imageUrl);
-      } else if (file.type.startsWith('text/')) {
+      } else if (file.type.startsWith('text/') || file.type === 'application/json') {
         // For text files, read the content
         const reader = new FileReader();
         reader.onload = (e) => {
           setFilePreview(e.target?.result as string);
         };
         reader.readAsText(file);
+      } else if (file.type === 'application/pdf') {
+        // For PDF files, create object URL for iframe
+        const pdfUrl = URL.createObjectURL(file);
+        setFilePreview(pdfUrl);
+        
+        // Cleanup URL when component unmounts
+        return () => URL.revokeObjectURL(pdfUrl);
       }
     }
   }, [file]);
@@ -43,7 +50,8 @@ const ProcessingResults = ({ file, processedData, onBack }: ProcessingResultsPro
     if (file.type.startsWith('image/')) return <Image className="h-6 w-6" />;
     if (file.type.startsWith('video/')) return <Video className="h-6 w-6" />;
     if (file.type.startsWith('audio/')) return <Music className="h-6 w-6" />;
-    if (file.type.startsWith('text/')) return <FileText className="h-6 w-6" />;
+    if (file.type.startsWith('text/') || file.type === 'application/json') return <FileText className="h-6 w-6" />;
+    if (file.type === 'application/pdf') return <FileType className="h-6 w-6" />;
     return <File className="h-6 w-6" />;
   };
 
@@ -58,7 +66,7 @@ const ProcessingResults = ({ file, processedData, onBack }: ProcessingResultsPro
           />
         </div>
       );
-    } else if (file.type.startsWith('text/') && filePreview) {
+    } else if ((file.type.startsWith('text/') || file.type === 'application/json') && filePreview) {
       return (
         <div className="p-4 h-full overflow-auto">
           <div className="bg-muted rounded-lg p-4 font-mono text-sm">
@@ -72,15 +80,34 @@ const ProcessingResults = ({ file, processedData, onBack }: ProcessingResultsPro
           </div>
         </div>
       );
+    } else if (file.type === 'application/pdf' && filePreview) {
+      return (
+        <div className="h-full p-4">
+          <div className="h-full bg-muted rounded-lg overflow-hidden border border-border">
+            <iframe
+              src={filePreview}
+              className="w-full h-full"
+              title="PDF Preview"
+            />
+          </div>
+        </div>
+      );
     } else {
       return (
         <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8">
           {getFileIcon()}
-          <h3 className="text-lg font-semibold mt-4 mb-2">Preview Not Available</h3>
+          <h3 className="text-lg font-semibold mt-4 mb-2">
+            {file.type === 'application/pdf' ? 'PDF Document' : 'Preview Not Available'}
+          </h3>
           <div className="text-center space-y-1">
             <p className="font-medium text-foreground">{file.name}</p>
             <p className="text-sm">Type: {file.type || 'Unknown'}</p>
             <p className="text-sm">Size: {(file.size / 1024).toFixed(2)} KB</p>
+            {file.type === 'application/pdf' && (
+              <p className="text-sm text-blue-600 dark:text-blue-400 mt-2">
+                PDF preview should load above
+              </p>
+            )}
           </div>
         </div>
       );
