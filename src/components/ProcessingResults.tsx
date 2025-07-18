@@ -1,8 +1,9 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, File, Code2, Loader2, FileText, Image, Video, Music, FileType } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ArrowLeft, File, Code2, Loader2, FileText, Image, Video, Music, FileType, Download } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface ProcessingResultsProps {
   file: File;
@@ -13,6 +14,7 @@ interface ProcessingResultsProps {
 const ProcessingResults = ({ file, processedData, onBack }: ProcessingResultsProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [filePreview, setFilePreview] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     // Create preview for the uploaded file
@@ -44,6 +46,25 @@ const ProcessingResults = ({ file, processedData, onBack }: ProcessingResultsPro
   const handleRefresh = () => {
     setIsLoading(true);
     setTimeout(() => setIsLoading(false), 1500);
+  };
+
+  const handleDownloadJson = () => {
+    const dataStr = JSON.stringify(processedData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${file.name.split('.')[0]}_processed.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast({
+      title: "Download started",
+      description: "JSON file has been downloaded successfully",
+    });
   };
 
   const getFileIcon = () => {
@@ -114,24 +135,120 @@ const ProcessingResults = ({ file, processedData, onBack }: ProcessingResultsPro
     }
   };
 
+  const renderTabContent = (tab: string) => {
+    switch (tab) {
+      case 'json':
+        return (
+          <div className="h-[500px] bg-slate-900 overflow-auto">
+            <pre className="p-6 text-green-400 font-mono text-sm whitespace-pre-wrap leading-relaxed">
+              {JSON.stringify(processedData, null, 2)}
+            </pre>
+          </div>
+        );
+      case 'raw':
+        return (
+          <div className="h-[500px] bg-muted/30 overflow-auto p-6">
+            <div className="font-mono text-sm">
+              <p className="text-muted-foreground mb-4">Raw text content extracted from the file:</p>
+              <div className="bg-background p-4 rounded-lg border">
+                {processedData?.results?.extractedText || "No raw text available"}
+              </div>
+            </div>
+          </div>
+        );
+      case 'annotated':
+        return (
+          <div className="h-[500px] bg-muted/30 overflow-auto p-6">
+            <div className="font-mono text-sm">
+              <p className="text-muted-foreground mb-4">Annotated content with highlights:</p>
+              <div className="bg-background p-4 rounded-lg border">
+                <span className="bg-yellow-200 dark:bg-yellow-800 px-1 rounded">Highlighted text</span> and 
+                <span className="bg-blue-200 dark:bg-blue-800 px-1 rounded ml-1">important sections</span> 
+                would appear here based on analysis results.
+              </div>
+            </div>
+          </div>
+        );
+      case 'entities':
+        return (
+          <div className="h-[500px] bg-muted/30 overflow-auto p-6">
+            <div className="space-y-4">
+              <p className="text-muted-foreground mb-4">Named entities and key information:</p>
+              <div className="grid gap-2">
+                {['Person', 'Organization', 'Location', 'Date'].map((type) => (
+                  <div key={type} className="bg-background p-3 rounded-lg border">
+                    <span className="font-semibold text-sm">{type}:</span>
+                    <span className="ml-2 text-sm text-muted-foreground">
+                      {type === 'Person' ? 'John Doe, Jane Smith' : 
+                       type === 'Organization' ? 'ACME Corp, Tech Solutions' :
+                       type === 'Location' ? 'New York, California' :
+                       '2024-01-15, 2024-02-20'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      case 'metadata':
+        return (
+          <div className="h-[500px] bg-muted/30 overflow-auto p-6">
+            <div className="space-y-4">
+              <p className="text-muted-foreground mb-4">File metadata and processing details:</p>
+              <div className="grid gap-3">
+                <div className="bg-background p-3 rounded-lg border">
+                  <div className="text-sm font-semibold">File Information</div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    Name: {file.name}<br/>
+                    Size: {(file.size / 1024).toFixed(2)} KB<br/>
+                    Type: {file.type}
+                  </div>
+                </div>
+                <div className="bg-background p-3 rounded-lg border">
+                  <div className="text-sm font-semibold">Processing Details</div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    Status: {processedData?.status}<br/>
+                    Processed At: {new Date(processedData?.processedAt).toLocaleString()}<br/>
+                    Version: {processedData?.results?.metadata?.version}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
       <div className="p-6">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-          <div className="flex items-center gap-4 mb-8">
-            <Button 
-              variant="outline" 
-              onClick={onBack}
-              className="flex items-center gap-2 hover:bg-muted"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Upload
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">Processing Results</h1>
-              <p className="text-muted-foreground mt-1">Analysis complete for your uploaded file</p>
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-4">
+              <Button 
+                variant="outline" 
+                onClick={onBack}
+                className="flex items-center gap-2 hover:bg-muted"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Upload
+              </Button>
+              <div>
+                <h1 className="text-3xl font-bold text-foreground">Processing Results</h1>
+                <p className="text-muted-foreground mt-1">Analysis complete for your uploaded file</p>
+              </div>
             </div>
+            
+            <Button 
+              onClick={handleDownloadJson}
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Download JSON
+            </Button>
           </div>
 
           {/* Main Content Grid */}
@@ -156,16 +273,16 @@ const ProcessingResults = ({ file, processedData, onBack }: ProcessingResultsPro
               </CardContent>
             </Card>
 
-            {/* Right Panel - API Response */}
+            {/* Right Panel - Tabbed Analysis Results */}
             <Card className="border-2 border-border/50 shadow-lg">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-3">
                     <Code2 className="h-6 w-6" />
                     <div>
-                      <div className="text-lg">API Response</div>
+                      <div className="text-lg">Analysis Results</div>
                       <CardDescription className="mt-1">
-                        Processing results and metadata
+                        Comprehensive processing results and insights
                       </CardDescription>
                     </div>
                   </CardTitle>
@@ -185,20 +302,29 @@ const ProcessingResults = ({ file, processedData, onBack }: ProcessingResultsPro
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="h-[500px] border-t border-border">
+                <div className="border-t border-border">
                   {isLoading ? (
-                    <div className="flex items-center justify-center h-full bg-muted/30">
+                    <div className="flex items-center justify-center h-[500px] bg-muted/30">
                       <div className="text-center">
                         <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-                        <p className="text-muted-foreground">Loading API response...</p>
+                        <p className="text-muted-foreground">Loading analysis results...</p>
                       </div>
                     </div>
                   ) : (
-                    <div className="h-full bg-slate-900 overflow-auto">
-                      <pre className="p-6 text-green-400 font-mono text-sm whitespace-pre-wrap leading-relaxed">
-                        {JSON.stringify(processedData, null, 2)}
-                      </pre>
-                    </div>
+                    <Tabs defaultValue="json" className="w-full">
+                      <TabsList className="grid w-full grid-cols-5 rounded-none border-b">
+                        <TabsTrigger value="json" className="text-xs">JSON</TabsTrigger>
+                        <TabsTrigger value="raw" className="text-xs">Raw Text</TabsTrigger>
+                        <TabsTrigger value="annotated" className="text-xs">Annotated</TabsTrigger>
+                        <TabsTrigger value="entities" className="text-xs">Entities</TabsTrigger>
+                        <TabsTrigger value="metadata" className="text-xs">Metadata</TabsTrigger>
+                      </TabsList>
+                      {['json', 'raw', 'annotated', 'entities', 'metadata'].map((tab) => (
+                        <TabsContent key={tab} value={tab} className="mt-0">
+                          {renderTabContent(tab)}
+                        </TabsContent>
+                      ))}
+                    </Tabs>
                   )}
                 </div>
               </CardContent>
